@@ -26,7 +26,7 @@ export function buildMap(scene) {
 
     // === 地面 ===
     const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundTex = texLoader.load('./textures/' + encodeURIComponent('沙地') + '.jpg');
+    const groundTex = texLoader.load('./textures/sand.jpg');
     groundTex.colorSpace = THREE.SRGBColorSpace;
     groundTex.wrapS = THREE.RepeatWrapping; groundTex.wrapT = THREE.RepeatWrapping;
     groundTex.repeat.set(24, 24);
@@ -39,7 +39,7 @@ export function buildMap(scene) {
 
     // === 外围四面墙 ===
     const wallGeoH = new THREE.BoxGeometry(GROUND_SIZE, WALL_HEIGHT, T); // 水平墙（北/南）
-    const wallTex = texLoader.load('./textures/' + encodeURIComponent('砖墙') + '.jpg');
+    const wallTex = texLoader.load('./textures/brick.jpg');
     wallTex.colorSpace = THREE.SRGBColorSpace;
     wallTex.wrapS = THREE.RepeatWrapping; wallTex.wrapT = THREE.RepeatWrapping;
     wallTex.repeat.set(20, 4);

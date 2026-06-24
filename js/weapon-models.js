@@ -11,10 +11,10 @@ var AK_METAL     = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 
 // ============================================================
 // 路径
 // ============================================================
-var daggerPath  = './textures/' + encodeURIComponent('匕首') + '/' + encodeURIComponent('匕首') + '.glb';
+var daggerPath  = './textures/dagger/dagger.glb';
 var akObjPath   = './textures/AK47/AK_OBJ.obj';
 var pistolPath  = './textures/pistol.glb';
-var grenadePath = './textures/' + encodeURIComponent('手雷') + '.glb';
+var grenadePath = './textures/grenade.glb';
 
 // 缓存
 var daggerRoot  = null, daggerReady  = false;
