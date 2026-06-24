@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS 射击游戏 - 第六批 (界面完善+传送门+主菜单+击杀日志+准星自定义+音效补全)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        canvas { display: block; }
+
+        /* ──── 主菜单 ──── */
+        #main-menu {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 60%, #0d1a2d 100%);
+            z-index: 200; display: flex; align-items: center; justify-content: center;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            flex-direction: column;
+        }
+        #menu-panel {
+            text-align: center; padding: 60px 80px;
+            background: rgba(0,0,0,0.5); border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #menu-panel h1 { color: #fff; font-size: 42px; margin-bottom: 8px; letter-spacing: 4px; }
+        .menu-version { color: #666; font-size: 14px; margin-bottom: 36px; }
+        .menu-btn {
+            display: block; width: 280px; margin: 12px auto; padding: 14px 0;
+            font-size: 20px; font-family: 'Microsoft YaHei', sans-serif;
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+            background: rgba(255,255,255,0.06); color: #ccc; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .menu-btn:hover { background: rgba(255,255,255,0.15); color: #fff; border-color: rgba(255,255,255,0.4); }
+        .menu-btn.primary { background: rgba(255,180,0,0.15); border-color: rgba(255,180,0,0.4); color: #ffb400; }
+        .menu-btn.primary:hover { background: rgba(255,180,0,0.3); }
+
+        /* ──── 操作说明 ──── */
+        #controls-panel {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 210;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        #controls-content {
+            background: rgba(20,20,40,0.95); padding: 40px 60px; border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.15); text-align: center;
+            min-width: 400px;
+        }
+        #controls-content h2 { color: #ffb400; font-size: 26px; margin-bottom: 24px; }
+        .ctrl-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px;
+            font-size: 16px; text-align: left; margin-bottom: 28px;
+        }
+        .ctrl-grid span:nth-child(odd) { color: #ffb400; text-align: right; font-weight: bold; }
+        .ctrl-grid span:nth-child(even) { color: #ccc; }
+
+        /* Pointer Lock 遮罩 */
+        #blocker {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100; cursor: pointer;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #fff; font-size: 24px; text-align: center;
+            -webkit-user-select: none; user-select: none;
+        }
+        #instructions {
+            padding: 20px 40px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 12px;
+            background: rgba(0,0,0,0.5);
+            line-height: 2;
+        }
+
+        /* 受伤覆盖层 */
+        #damage-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 0, 0, 0.25);
+            pointer-events: none; z-index: 49;
+            opacity: 0;
+            transition: opacity 0.05s;
+        }
+
+        /* 准星 4线段 */
+        #crosshair {
+            position: fixed; top: 50%; left: 50%;
+            width: 0; height: 0;
+            transform: translate(-50%, -50%);
+            z-index: 50; pointer-events: none; -webkit-user-select: none; user-select: none;
+        }
+        .ch-line { position: absolute; }
+        .ch-top, .ch-bottom { width: 2px; height: 12px; left: -1px; }
+        .ch-top    { bottom: 4px; }
+        .ch-bottom { top: 4px; }
+        .ch-left, .ch-right { width: 12px; height: 2px; top: -1px; }
+        .ch-left  { right: 4px; }
+        .ch-right { left: 4px; }
+
+        /* 圆点准星 */
+        .ch-line.dot { width: 4px; height: 4px; border-radius: 50%; left: -2px; top: -2px; bottom: auto; right: auto; }
+
+        /* 圆环准星 */
+        #ch-circle { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 16px; height: 16px; border-radius: 50%; border: 2px solid; pointer-events: none; }
+
+        /* 箭头准星 */
+        .ch-chevron { position: absolute; width: 0; height: 0; }
+
+        #ch-hit {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff3333; font-size: 22px; font-weight: bold;
+            font-family: 'Microsoft YaHei', sans-serif;
+            pointer-events: none; -webkit-user-select: none; user-select: none;
+            opacity: 0;
+            text-shadow: 0 0 4px rgba(255,0,0,0.8);
+        }
+
+        #health-bar {
+            position: fixed; left: 30px; bottom: 60px;
+            width: 260px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.6);
+            border-radius: 4px;
+            z-index: 50; pointer-events: none; -webkit-user-select: none; user-select: none;
+            background: rgba(0,0,0,0.5);
+        }
+        #health-fill {
+            width: 100%; height: 100%;
+            background: #4caf50;
+            border-radius: 2px;
+            transition: width 0.2s, background 0.3s;
+        }
+        #health-label {
+            position: fixed; left: 30px; bottom: 82px;
+            color: rgba(255,255,255,0.7); font-size: 13px;
+            font-family: 'Microsoft YaHei', sans-serif;
+            z-index: 50; pointer-events: none; -webkit-user-select: none; user-select: none;
+        }
+
+        #score {
+            position: fixed; top: 20px; right: 30px;
+            color: #ffcc00; font-size: 26px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            z-index: 50; pointer-events: none; -webkit-user-select: none; user-select: none;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+
+        #damage-dir {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; -webkit-user-select: none; user-select: none;
+            opacity: 0; transition: opacity 0.1s;
+        }
+        #damage-arrow {
+            position: absolute; top: 50%; left: 50%;
+            width: 0; height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 14px solid rgba(255, 50, 50, 0.9);
+            transform-origin: 50% 100%;
+            pointer-events: none; -webkit-user-select: none; user-select: none;
+            filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.8));
+        }
+
+        #kill-feed {
+            position: fixed; bottom: 100px; left: 16px;
+            display: flex; flex-direction: column-reverse;
+            gap: 2px;
+            z-index: 51; pointer-events: none; -webkit-user-select: none; user-select: none;
+            max-height: 280px; overflow: hidden;
+        }
+        .kill-msg {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 15px;
+            padding: 3px 12px;
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.65);
+            animation: killSlide 0.25s ease-out, killFade 5s 2s ease-out forwards;
+            white-space: nowrap; color: #ccc;
+            border-left: 3px solid rgba(255,255,255,0.25);
+        }
+        .kill-msg .klr { color: #fff; }
+        .kill-msg .vic { color: #ff6666; }
+        .kill-msg .wpn { color: #aaa; font-style: italic; }
+        .kill-msg .hs  { color: #ffd700; font-weight: bold; margin-left: 6px; }
+        .kill-msg.headshot { border-left-color: #ffd700; }
+        .kill-msg.knife   { border-left-color: #ff4444; }
+        .kill-msg.grenade { border-left-color: #ff8800; }
+        @keyframes killSlide {
+            0%   { opacity: 0; transform: translateX(-40px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes killFade {
+            0%   { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-6px); }
+        }
+
+        #kill-streak-card {
+            position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%);
+            z-index: 52; pointer-events: none; -webkit-user-select: none; user-select: none;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 30px; font-weight: bold;
+            opacity: 0; transition: opacity 0.2s;
+            text-shadow: 0 0 15px currentColor;
+            text-align: center;
+        }
+        #kill-confirm {
+            position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+            z-index: 51; pointer-events: none; -webkit-user-select: none; user-select: none;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 20px; font-weight: bold;
+            color: #ffffff; opacity: 0;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            text-align: center;
+        }
+        #weapon-name {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            z-index: 51; pointer-events: none; -webkit-user-select: none; user-select: none;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 16px; color: rgba(255,255,255,0.7);
+            opacity: 0; transition: opacity 0.15s;
+            text-align: center;
+        }
+        #grenade-count {
+            position: fixed; bottom: 35px; right: 30px;
+            z-index: 50; pointer-events: none; -webkit-user-select: none; user-select: none;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 22px; color: #aaddaa;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+        }
+
+        #hud {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 50; font-family: 'Consolas', 'Courier New', monospace;
+            color: #fff; font-size: 28px; text-shadow: 0 0 8px rgba(0,0,0,0.8);
+            -webkit-user-select: none; user-select: none; pointer-events: none;
+        }
+
+        /* --- 第五批新增 — 波次显示 --- */
+        #wave-display {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            z-index: 50; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 24px; color: #ffffff;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            pointer-events: none; -webkit-user-select: none; user-select: none;
+        }
+        #wave-transition {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 55; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            font-size: 40px; font-weight: bold;
+            color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.8);
+            pointer-events: none; -webkit-user-select: none; user-select: none;
+            opacity: 0; transition: opacity 0.3s;
+        }
+
+        /* --- 第五批新增 — 死亡覆盖层 --- */
+        #death-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(139,0,0,0.85); z-index: 250;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #fff; cursor: pointer; -webkit-user-select: none; user-select: none;
+            pointer-events: auto;
+        }
+        #death-overlay h1 {
+            font-size: 64px; font-weight: bold; margin-bottom: 20px;
+            text-shadow: 0 0 20px #ff0000;
+        }
+        #death-overlay .stat {
+            font-size: 28px; margin-bottom: 10px;
+        }
+        #death-overlay .stat span { color: #ffcc00; }
+        #death-overlay .hint {
+            font-size: 20px; margin-top: 30px; color: rgba(255,255,255,0.7);
+        }
+
+        /* --- 第五批新增 — 设置面板 --- */
+        #settings-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 220;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #fff; -webkit-user-select: none; user-select: none;
+        }
+        #settings-panel {
+            background: rgba(30,30,30,0.95); padding: 40px 60px;
+            border-radius: 16px; border: 2px solid rgba(255,255,255,0.2);
+            min-width: 400px;
+        }
+        #settings-panel h2 {
+            text-align: center; margin-bottom: 30px; font-size: 28px; color: #ffcc00;
+        }
+        #settings-panel label {
+            display: block; margin-bottom: 8px; font-size: 18px;
+        }
+        #settings-panel input[type=range] {
+            width: 100%; height: 8px; accent-color: #ffcc00; margin-bottom: 25px;
+        }
+        #settings-resume {
+            display: block; width: 100%; margin-top: 20px;
+            padding: 12px; font-size: 20px; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: #4caf50; color: #fff; border: none; border-radius: 8px;
+            cursor: pointer;
+        }
+        #settings-resume:hover { background: #5cbf60; }
+        #settings-hint {
+            text-align: center; margin-top: 15px; font-size: 14px;
+            color: rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 主菜单 -->
+    <div id="main-menu">
+        <div id="menu-panel">
+            <h1>🔫 FPS 射击游戏</h1>
+            <div class="menu-version">v6 — 界面完善版</div>
+            <button id="btn-start" class="menu-btn primary">▶ 开始游戏</button>
+            <button id="btn-settings" class="menu-btn">⚙ 设置</button>
+            <button id="btn-controls" class="menu-btn">📖 操作说明</button>
+        </div>
+    </div>
+
+    <!-- 操作说明面板 -->
+    <div id="controls-panel" style="display:none;">
+        <div id="controls-content">
+            <h2>📖 操作说明</h2>
+            <div class="ctrl-grid">
+                <span>W A S D</span><span>移动</span>
+                <span>鼠标</span><span>视角</span>
+                <span>左键</span><span>射击 / 挥刀</span>
+                <span>R</span><span>换弹</span>
+                <span>G</span><span>投掷手雷</span>
+                <span>1 / 2 / 3</span><span>匕首 / 手枪 / AK47</span>
+                <span>空格</span><span>跳跃</span>
+                <span>Shift / 双击W</span><span>奔跑</span>
+                <span>V</span><span>开镜</span>
+                <span>C</span><span>设置面板</span>
+                <span>走近传送门</span><span>进入下一波</span>
+                <span>滚轮</span><span>快速切换武器</span>
+            </div>
+            <button id="btn-controls-back" class="menu-btn primary">🔙 返回菜单</button>
+        </div>
+    </div>
+
+    <!-- 开始阻挡层（点击锁定鼠标） -->
+    <div id="blocker">
+        <div id="instructions">
+            🎯 点击继续
+        </div>
+    </div>
+
+    <!-- 死亡覆盖层 -->
+    <div id="death-overlay">
+        <h1>你阵亡了</h1>
+        <div class="stat">最终得分: <span id="death-score">0</span></div>
+        <div class="stat">击杀数: <span id="death-kills">0</span></div>
+        <div class="stat">到达第 <span id="death-wave">1</span> 波</div>
+        <div class="hint">点击屏幕或按任意键重新开始</div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="settings-overlay">
+        <div id="settings-panel">
+            <h2>游戏设置</h2>
+            <label>鼠标灵敏度: <span id="sens-value">0.0020</span></label>
+            <input type="range" id="sensitivity-slider" min="0.0005" max="0.006" step="0.0001" value="0.002">
+            <label>主音量: <span id="vol-value">60%</span></label>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.6">
+            <label>准星颜色: <input type="color" id="ch-color" style="width:60px;height:30px;border:none;cursor:pointer;vertical-align:middle;"></label>
+            <label>准星形状:
+                <select id="ch-shape" style="font-size:15px;padding:4px 8px;border-radius:4px;background:#222;color:#fff;border:1px solid #555;">
+                    <option value="cross">十字</option>
+                    <option value="dot">圆点</option>
+                    <option value="circle">圆环</option>
+                    <option value="chevron">箭头</option>
+                </select>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" id="hard-mode-check" style="width:20px;height:20px;accent-color:#ff3333;">
+                困难模式（敌人会开枪射击）
+            </label>
+            <button id="settings-resume">返回游戏</button>
+            <div id="settings-hint">按 C 关闭</div>
+        </div>
+    </div>
+
+    <!-- 波次显示 -->
+    <div id="wave-display">第 1 波  |  剩余: <span id="wave-remain">8</span></div>
+    <div id="wave-transition">第 2 波 即将开始!</div>
+
+    <div id="damage-overlay"></div>
+    <div id="score">Score: 0</div>
+    <div id="kill-feed"></div>
+
+    <div id="crosshair">
+        <div class="ch-line ch-top" id="ch-top"></div>
+        <div class="ch-line ch-bottom" id="ch-bottom"></div>
+        <div class="ch-line ch-left" id="ch-left"></div>
+        <div class="ch-line ch-right" id="ch-right"></div>
+        <div id="ch-circle"></div>
+        <div id="ch-hit">✕</div>
+        <div id="damage-dir">
+            <div id="damage-arrow"></div>
+        </div>
+    </div>
+
+    <div id="health-label">HP</div>
+    <div id="health-bar">
+        <div id="health-fill"></div>
+    </div>
+
+    <div id="weapon-name"></div>
+    <div id="kill-streak-card"></div>
+    <div id="kill-confirm">击杀</div>
+
+    <div id="hud">
+        <span id="ammo">30 / 90</span>
+    </div>
+
+    <div id="grenade-count">Gx2</div>
+
+    <script type="importmap">
+        { "imports": { "three": "./js/three.module.js" } }
+    </script>
+    <script type="module" src="js/main.js?v=107"></script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>FPS 地图碰撞体检视</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a2e; color:#ccc; font-family: 'Microsoft YaHei', sans-serif; display:flex; }
+#panel { width:320px; padding:20px; background:#16213e; overflow-y:auto; height:100vh; }
+#panel h2 { color:#e94560; margin-bottom:10px; }
+#panel h3 { color:#f5c518; margin:16px 0 6px; font-size:15px; }
+#panel p, #panel li { font-size:13px; line-height:1.7; }
+#panel ul { padding-left:18px; }
+#panel .bad { color:#ff5555; }
+#panel .warn { color:#ffaa00; }
+#panel .good { color:#55dd55; }
+#canvas-wrap { flex:1; display:flex; align-items:center; justify-content:center; padding:10px; }
+canvas { background:#0f0f23; border:1px solid #333; cursor:default; }
+.legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin:10px 0; }
+.legend span { font-size:12px; display:flex; align-items:center; gap:4px; }
+.legend .swatch { display:inline-block; width:14px; height:14px; border-radius:2px; }
+</style>
+</head>
+<body>
+<div id="panel">
+<h2>🗺️ 场景地形 &amp; 碰撞体检视</h2>
+
+<h3>✅ P0 — 对角线AABB膨胀 <b class="good">已修复</b></h3>
+<p>原中路斜墙 (rotY=45°) 已拆为 <b>4段轴对齐小墙</b>，沿 z=x 对角线阶梯排列。每段 2.5×2.5m，碰撞盒 <b class="good">100%贴合几何体</b>，空气碰撞区归零。</p>
+<ul>
+  <li class="good">新版：4段 2.5×2.5m 轴对齐墙段（阶梯排列）</li>
+  <li class="good">AABB = 几何体，零空气碰撞</li>
+</ul>
+
+<h3>🟡 P1 — 门洞无实际通道</h3>
+<p>4 个门洞只有装饰性的柱子，墙的 Box3 没有打洞。门柱 0.5×4×0.5m 放在墙内侧，墙 Box3 (120×20×2) 把整个门面盖住。</p>
+
+<h3>图例</h3>
+<div class="legend">
+<span><span class="swatch" style="background:#c8a951"></span> 地面 120×120</span>
+<span><span class="swatch" style="background:#a0825a"></span> 外围墙</span>
+<span><span class="swatch" style="background:#8b7355"></span> 中路短墙</span>
+<span><span class="swatch" style="background:#8b6914"></span> 箱子掩体</span>
+<span><span class="swatch" style="background:#666"></span> 门柱/横梁</span>
+<span><span class="swatch" style="background:rgba(85,221,85,0.3); border:2px solid #55dd55"></span> AABB=几何体 ✓</span>
+<span><span class="swatch" style="background:rgba(255,170,0,0.3); border:1px dashed #ffaa00"></span> 墙Box3挡住门</span>
+</div>
+<div class="legend">
+<span><span class="swatch" style="background:#00ff88; border-radius:50%"></span> 玩家出生</span>
+<span><span class="swatch" style="background:#ff4444; border-radius:50%"></span> 敌人生成</span>
+<span><span class="swatch" style="background:#44aaff; border-radius:50%"></span> 拾取物</span>
+</div>
+
+<h3>📐 数值参考</h3>
+<ul>
+  <li>世界 120×120m，围墙高 20m 厚 2m</li>
+  <li>箱子 3×3×3m / 堆叠 3×6×3</li>
+  <li>玩家碰撞 φ0.8m，跑步 10m/s</li>
+  <li>敌人检测 30m，攻击 3m</li>
+  <li>拾取半径 1.5m</li>
+</ul>
+
+<h3>🔧 修复建议</h3>
+<ul>
+  <li class="bad">斜墙 — 拆成 3 段轴对齐小板，或实现 OBB 碰撞</li>
+  <li class="warn">门洞 — 墙Box3在门道处切为两段</li>
+</ul>
+</div>
+<div id="canvas-wrap">
+<canvas id="c" width="860" height="860"></canvas>
+</div>
+
+<script>
+const CANVAS_SIZE = 860;
+const WORLD = 120;
+const SCALE = CANVAS_SIZE / WORLD;  // px/m
+const HALF = CANVAS_SIZE / 2;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function tx(wx) { return HALF + wx * SCALE; }
+function tz(wz) { return HALF - wz * SCALE; }  // Z flip for screen Y
+function sw(w) { return w * SCALE; }
+
+// --- 地面 ---
+ctx.fillStyle = '#c8a951';
+ctx.fillRect(tx(-HALF/SCALE), tz(HALF/SCALE), sw(WORLD), sw(WORLD));
+
+// 网格线
+ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+ctx.lineWidth = 0.5;
+for (var i = -55; i <= 55; i += 5) {
+    ctx.beginPath(); ctx.moveTo(tx(i), tz(-60)); ctx.lineTo(tx(i), tz(60)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx(-60), tz(i)); ctx.lineTo(tx(60), tz(i)); ctx.stroke();
+}
+
+// 坐标轴
+ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+ctx.beginPath(); ctx.moveTo(tx(-60), tz(0)); ctx.lineTo(tx(60), tz(0)); ctx.stroke();
+ctx.beginPath(); ctx.moveTo(tx(0), tz(-60)); ctx.lineTo(tx(0), tz(60)); ctx.stroke();
+ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '11px monospace';
+ctx.fillText('+X →', tx(55), tz(0) - 4);
+ctx.fillText('-X ←', tx(-58), tz(0) - 4);
+ctx.fillText('+Z ↓', tx(0) + 4, tz(55) + 4);
+ctx.fillText('-Z ↑', tx(0) + 4, tz(-55) + 14);
+ctx.fillText('(0,0)', tx(0) + 4, tz(0) + 4);
+
+// ============================================================
+// 辅助：绘制/标注
+// ============================================================
+
+function rect(x, z, w, d, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(tx(x - w/2), tz(z + d/2), sw(w), sw(d));
+}
+
+function rectStroke(x, z, w, d, color, lw) {
+    ctx.strokeStyle = color; ctx.lineWidth = lw || 1.5;
+    ctx.strokeRect(tx(x - w/2), tz(z + d/2), sw(w), sw(d));
+}
+
+function rectDashed(x, z, w, d, color, lw) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = lw || 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(tx(x - w/2), tz(z + d/2), sw(w), sw(d));
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+
+function circle(x, z, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(tx(x), tz(z), sw(r), 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function circleStroke(x, z, r, color, lw) {
+    ctx.strokeStyle = color; ctx.lineWidth = lw || 1.5;
+    ctx.beginPath();
+    ctx.arc(tx(x), tz(z), sw(r), 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function label(x, z, text, color, size) {
+    ctx.fillStyle = color || '#fff';
+    ctx.font = (size || 10) + 'px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, tx(x), tz(z));
+}
+
+// ============================================================
+// 绘制外围墙
+// ============================================================
+ctx.fillStyle = '#a0825a';
+ctx.globalAlpha = 0.85;
+// 北 Y 向墙 (中心0, z=-60, W=120 H=20 D=2)
+rect(0, -HALF/SCALE, WORLD, 2, '#a0825a');
+// 南
+rect(0, HALF/SCALE, WORLD, 2, '#a0825a');
+// 西 X 向墙 (x=-60, D=2 H=20 W=120)
+rect(-HALF/SCALE, 0, 2, WORLD, '#a0825a');
+// 东
+rect(HALF/SCALE, 0, 2, WORLD, '#a0825a');
+ctx.globalAlpha = 1;
+
+// 墙碰撞盒标注 — 和几何体完全一致
+rectStroke(0, -HALF/SCALE, WORLD, 2, 'rgba(255,0,0,0.4)', 1.5);
+rectStroke(0, HALF/SCALE, WORLD, 2, 'rgba(255,0,0,0.4)', 1.5);
+rectStroke(-HALF/SCALE, 0, 2, WORLD, 'rgba(255,0,0,0.4)', 1.5);
+rectStroke(HALF/SCALE, 0, 2, WORLD, 'rgba(255,0,0,0.4)', 1.5);
+
+label(0, -58, '北墙', '#ddd', 10);
+label(0, 58, '南墙', '#ddd', 10);
+label(-58, 0, '西墙', '#ddd', 10);
+label(58, 0, '东墙', '#ddd', 10);
+
+// ============================================================
+// 中路短墙（3面）
+// ============================================================
+
+// ═══ 已修复：对角线斜墙 — 拆为4段轴对齐小墙，从(-2.1,-2.1)到(2.1,2.1)，每段2.5×2.5m ═══
+const diagPts = [[-2.1, -2.1], [-0.7, -0.7], [0.7, 0.7], [2.1, 2.1]];
+const diagSize = 2.5;
+for (var di = 0; di < diagPts.length; di++) {
+    var dx = diagPts[di][0], dz = diagPts[di][1];
+    // 墙体
+    ctx.fillStyle = '#8b7355';
+    ctx.globalAlpha = 0.9;
+    rect(dx, dz, diagSize, diagSize, '#8b7355');
+    ctx.globalAlpha = 1;
+    // 碰撞盒（AABB = 几何体，完美贴合 ✓）
+    rectStroke(dx, dz, diagSize, diagSize, '#55dd55', 2);
+    label(dx, dz, '✓ ' + diagSize.toFixed(1) + '×' + diagSize.toFixed(1), '#55ff55', 8);
+}
+// 整体标注
+label(0, 0, '✅ 已修复\n4段轴对齐', '#55ff55', 10);
+
+// --- 中路短墙 #2 中心 (-5,5) 10×3 rotY=0 ---
+var cx2 = -5, cz2 = 5, w2 = 10, d2 = 3;
+ctx.fillStyle = '#8b7355';
+ctx.globalAlpha = 0.85;
+rect(cx2, cz2, w2, d2, '#8b7355');
+ctx.globalAlpha = 1;
+rectStroke(cx2, cz2, w2, d2, 'rgba(255,50,50,0.5)', 2);
+ctx.fillStyle = '#fff';
+label(cx2, cz2, '短墙2\n10×3', '#eee', 9);
+// 完美贴合标
+label(cx2, cz2 - 4, '✓ AABB=几何体', '#55dd55', 9);
+
+// --- 中路短墙 #3 中心 (5,-5) 10×3 rotY=0 ---
+var cx3 = 5, cz3 = -5, w3 = 10, d3 = 3;
+ctx.fillStyle = '#8b7355';
+ctx.globalAlpha = 0.85;
+rect(cx3, cz3, w3, d3, '#8b7355');
+ctx.globalAlpha = 1;
+rectStroke(cx3, cz3, w3, d3, 'rgba(255,50,50,0.5)', 2);
+label(cx3, cz3, '短墙3\n10×3', '#eee', 9);
+label(cx3, cz3 + 6, '✓ AABB=几何体', '#55dd55', 9);
+
+// ============================================================
+// 箱子掩体
+// ============================================================
+function drawCrate(x, z, labelText) {
+    var cw = 3, cd = 3;
+    ctx.fillStyle = '#8b6914';
+    ctx.globalAlpha = 0.9;
+    rect(x, z, cw, cd, '#8b6914');
+    ctx.globalAlpha = 1;
+    rectStroke(x, z, cw, cd, 'rgba(255,50,50,0.4)', 1.5);
+    if (labelText) label(x, z, labelText, '#fff', 8);
+    // 完美贴合
+    label(x, z - 2.5, '✓', '#55dd55', 9);
+}
+
+// A点掩体群
+drawCrate(25, -15, 'A箱1');
+drawCrate(28, -18, 'A箱2');
+drawCrate(22, -18, 'A箱3');
+drawCrate(25, -18, '堆叠');  // 堆叠（上方）
+
+// B点掩体群
+drawCrate(-25, 15, 'B箱1');
+drawCrate(-28, 12, 'B箱2');
+drawCrate(-22, 12, 'B箱3');
+
+label(26, -12, 'A点', '#ffcc00', 12);
+label(-26, 14, 'B点', '#ffcc00', 12);
+
+// ============================================================
+// 门洞
+// ============================================================
+function drawDoorway(x, z, labelText) {
+    // 左柱 0.5×4×0.5
+    ctx.fillStyle = '#666';
+    rect(x - 3, z, 0.5, 0.5, '#666');
+    rect(x + 3, z, 0.5, 0.5, '#666');
+    // 横梁
+    rect(x, z, 6.5, 0.5, '#555');
+    if (labelText) label(x, z - 3.5, labelText, '#aaa', 9);
+}
+
+// 东墙门洞（X=+58 处，Z=-10, +10）
+drawDoorway(58, -10, 'A大门');
+drawDoorway(58, 10, 'A小门');
+// 西墙门洞（X=-58 处，Z=-10, +10）
+drawDoorway(-58, -10, 'B小门');
+drawDoorway(-58, 10, 'B大门');
+
+// 门洞问题标注：墙Box3挡住整个门面
+ctx.fillStyle = 'rgba(255, 170, 0, 0.2)';
+ctx.fillRect(tx(57), tz(-13), sw(3.5), sw(6.5));
+ctx.fillRect(tx(57), tz(7.5), sw(3.5), sw(6));
+ctx.fillRect(tx(-60.5), tz(-13.5), sw(3.5), sw(6.5));
+ctx.fillRect(tx(-60.5), tz(7.5), sw(3.5), sw(6));
+// 标虚线
+rectDashed(59.75, -10, 3.5, 6.5, 'rgba(255,170,0,0.6)', 2);
+rectDashed(59.75, 10, 3.5, 6, 'rgba(255,170,0,0.6)', 2);
+rectDashed(-59.75, -10, 3.5, 6.5, 'rgba(255,170,0,0.6)', 2);
+rectDashed(-59.75, 10, 3.5, 6, 'rgba(255,170,0,0.6)', 2);
+
+label(59, -7, '⚠ 墙Box3\n挡住门道', '#ffaa00', 9);
+label(59, 13, '⚠ 墙Box3\n挡住门道', '#ffaa00', 9);
+
+// 门洞文字
+label(80, -10, '← 出界 →', '#aaa', 10);
+label(80, 10, '← 出界 →', '#aaa', 10);
+label(-80, -10, '← 出界 →', '#aaa', 10);
+label(-80, 10, '← 出界 →', '#aaa', 10);
+
+// ============================================================
+// 出生点 & 生成点
+// ============================================================
+// 玩家出生
+circle(0, 20, 0.5, '#00ff88');
+circleStroke(0, 20, 1.2, 'rgba(0,255,136,0.5)', 2);
+label(0, 17.5, '🏠 出生点\n(0, 1.6, 20)', '#00ff88', 10);
+
+// 敌人出生
+const enemySpawns = [
+    [28, -12], [23, -20], [-28, 12], [-23, 18],
+    [-8, 8], [8, -5], [-15, 25], [15, -27]
+];
+enemySpawns.forEach(function(p) {
+    circle(p[0], p[1], 0.4, '#ff4444');
+    circleStroke(p[0], p[1], 1.0, 'rgba(255,68,68,0.4)', 1.2);
+});
+label(22, -10, '敌人×8', '#ff6666', 10);
+
+// 拾取物
+const pickupSpawns = [
+    [10, -10], [-10, 12], [0, -5], [-5, 25], [5, -28], [22, -22], [-22, 22]
+];
+pickupSpawns.forEach(function(p) {
+    circle(p[0], p[1], 0.3, '#44aaff');
+});
+label(30, -5, '拾取物×7', '#66ccff', 10);
+
+// ============================================================
+// 区域标注
+// ============================================================
+ctx.fillStyle = 'rgba(255,255,255,0.12)';
+ctx.font = '16px "Microsoft YaHei", sans-serif';
+ctx.textAlign = 'center';
+ctx.fillText('中 路 (MID)', tx(0), tz(2.5));
+
+// 风玫瑰
+var rx = tx(-48), rz = tz(-48);
+ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.fillStyle = '#fff';
+ctx.beginPath(); ctx.moveTo(rx, rz-20); ctx.lineTo(rx, rz+20); ctx.stroke();
+ctx.beginPath(); ctx.moveTo(rx-20, rz); ctx.lineTo(rx+20, rz); ctx.stroke();
+ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+ctx.fillText('N', rx, rz-23);
+ctx.fillText('S', rx, rz+27);
+ctx.fillText('W', rx-24, rz+5);
+ctx.fillText('E', rx+24, rz+5);
+ctx.fillText('俯视', rx+4, rz-30);
+
+// 标题
+ctx.fillStyle = 'rgba(255,255,255,0.8)';
+ctx.font = 'bold 15px "Microsoft YaHei", sans-serif';
+ctx.fillText('🔍 AABB 碰撞盒 vs 真实几何体', tx(0), tz(-54));
+
+// 比例尺
+var sx = tx(-45), sz = tz(53);
+ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+ctx.beginPath(); ctx.moveTo(sx, sz); ctx.lineTo(sx + sw(20), sz); ctx.stroke();
+ctx.fillText('20m', sx + sw(10), sz - 6);
+</script>
+</body>
+</html>
