@@ -46,7 +46,7 @@ export function setModelReadyCallback(cb) { onModelReady = cb; }
 // ============================================================
 setTimeout(function () {
     // --- 匕首 (GLTFLoader) ---
-    import('./loaders/GLTFLoader.js?v=703').then(function (mod) {
+    import('./loaders/GLTFLoader.js?v=704').then(function (mod) {
         var loader = new mod.GLTFLoader();
         loader.load(daggerPath,
             function (gltf) {
@@ -55,6 +55,7 @@ setTimeout(function () {
                     var n = (c.name || '').toLowerCase();
                     if (n.indexOf('scabbard') >= 0 || n === 'plane.013') rm.push(c);
                     if (c.isMesh && c.geometry) {
+                        c.geometry = c.geometry.toNonIndexed();
                         c.geometry.computeVertexNormals();
                         c.material = BLADE_SILVER.clone();
                     }
@@ -78,6 +79,8 @@ setTimeout(function () {
                 scene.rotation.y = Math.PI / 2;
                 scene.traverse(function (c) {
                     if (c.isMesh && c.geometry) {
+                        // toNonIndexed 确保硬边法线，杜绝纹理颜色渗色（匕首同方案）
+                        c.geometry = c.geometry.toNonIndexed();
                         c.geometry.computeVertexNormals();
                         c.material = PISTOL_METAL.clone();
                     }
@@ -101,8 +104,9 @@ setTimeout(function () {
                 scene.scale.set(1.0, 1.0, 1.0);
                 scene.traverse(function (c) {
                     if (c.isMesh && c.geometry) {
+                        // toNonIndexed 确保硬边法线，杜绝纹理颜色渗色
+                        c.geometry = c.geometry.toNonIndexed();
                         c.geometry.computeVertexNormals();
-                        // 根据mesh名区分身体/金属环（Blender导出保留原始名称）
                         var n = (c.name || '').toLowerCase();
                         if (n.indexOf('ring') >= 0 || n.indexOf('pin') >= 0 || n.indexOf('metal') >= 0) {
                             c.material = GRENADE_RING.clone();
@@ -115,7 +119,7 @@ setTimeout(function () {
                 grenadeReady = true;
                 // 注入 grenade.js
                 setTimeout(function () {
-                    import('./grenade.js?v=703').then(function (gm) {
+                    import('./grenade.js?v=704').then(function (gm) {
                         if (gm.setGrenadeGLB) gm.setGrenadeGLB(grenadeRoot, true);
                     });
                 }, 100);
@@ -129,7 +133,7 @@ setTimeout(function () {
     }).catch(function (e) { console.warn('[model] GLTFLoader import失败:', e.message); });
 
     // --- AK47 (OBJLoader — 直接加载OBJ，不转GLB) ---
-    import('./loaders/OBJLoader.js?v=703').then(function (mod) {
+    import('./loaders/OBJLoader.js?v=704').then(function (mod) {
         var loader = new mod.OBJLoader();
         loader.load(akObjPath,
             function (obj) {
