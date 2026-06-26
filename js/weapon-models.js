@@ -7,8 +7,9 @@ import * as THREE from 'three';
 // ============================================================
 var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide });
 var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85 });
-var PISTOL_METAL  = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.35, metalness: 0.8 });
-var GRENADE_OLIVE = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.5, metalness: 0.1 });
+var PISTOL_METAL  = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.85 });
+var GRENADE_BODY  = new THREE.MeshStandardMaterial({ color: 0x5a5040, roughness: 0.55, metalness: 0.2 });
+var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.8 });
 
 // ============================================================
 // 路径
@@ -89,7 +90,13 @@ setTimeout(function () {
                 scene.traverse(function (c) {
                     if (c.isMesh && c.geometry) {
                         c.geometry.computeVertexNormals();
-                        c.material = GRENADE_OLIVE.clone();
+                        // 根据mesh名区分身体/金属环（Blender导出保留原始名称）
+                        var n = (c.name || '').toLowerCase();
+                        if (n.indexOf('ring') >= 0 || n.indexOf('pin') >= 0 || n.indexOf('metal') >= 0) {
+                            c.material = GRENADE_RING.clone();
+                        } else {
+                            c.material = GRENADE_BODY.clone();
+                        }
                     }
                 });
                 grenadeRoot = scene;
