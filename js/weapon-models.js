@@ -15,13 +15,13 @@ grenadeTex.colorSpace = THREE.SRGBColorSpace;
 // ============================================================
 // 材质预设
 // ============================================================
-var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide });
-var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85 });
+var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide, flatShading: true });
+var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85, flatShading: true });
 // 非金属PBR：metalness=0 让贴图颜色直接显示，不需要环境贴图
-// color乘数提亮(0xdddddd)补偿纹理本身的暗色调
-var PISTOL_METAL  = new THREE.MeshStandardMaterial({ map: pistolTex, color: 0xcccccc, roughness: 0.5, metalness: 0.05 });
-var GRENADE_BODY  = new THREE.MeshStandardMaterial({ map: grenadeTex, color: 0xdddddd, roughness: 0.6, metalness: 0.0 });
-var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.8 });
+// flatShading=true 消除低多边形模型硬边处的纹理颜色渗色（与匕首同方案）
+var PISTOL_METAL  = new THREE.MeshStandardMaterial({ map: pistolTex, color: 0xcccccc, roughness: 0.5, metalness: 0.05, flatShading: true });
+var GRENADE_BODY  = new THREE.MeshStandardMaterial({ map: grenadeTex, color: 0xdddddd, roughness: 0.6, metalness: 0.0, flatShading: true });
+var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.8, flatShading: true });
 
 // ============================================================
 // 路径
@@ -46,7 +46,7 @@ export function setModelReadyCallback(cb) { onModelReady = cb; }
 // ============================================================
 setTimeout(function () {
     // --- 匕首 (GLTFLoader) ---
-    import('./loaders/GLTFLoader.js?v=704').then(function (mod) {
+    import('./loaders/GLTFLoader.js?v=705').then(function (mod) {
         var loader = new mod.GLTFLoader();
         loader.load(daggerPath,
             function (gltf) {
@@ -119,7 +119,7 @@ setTimeout(function () {
                 grenadeReady = true;
                 // 注入 grenade.js
                 setTimeout(function () {
-                    import('./grenade.js?v=704').then(function (gm) {
+                    import('./grenade.js?v=705').then(function (gm) {
                         if (gm.setGrenadeGLB) gm.setGrenadeGLB(grenadeRoot, true);
                     });
                 }, 100);
@@ -133,7 +133,7 @@ setTimeout(function () {
     }).catch(function (e) { console.warn('[model] GLTFLoader import失败:', e.message); });
 
     // --- AK47 (OBJLoader — 直接加载OBJ，不转GLB) ---
-    import('./loaders/OBJLoader.js?v=704').then(function (mod) {
+    import('./loaders/OBJLoader.js?v=705').then(function (mod) {
         var loader = new mod.OBJLoader();
         loader.load(akObjPath,
             function (obj) {
@@ -174,12 +174,12 @@ export function buildKnifeModel() {
         var clone = daggerRoot.clone(true);
         clone.traverse(function (c) {
             if (c.isMesh && c.geometry) {
-                c.geometry.computeVertexNormals();
                 c.material = BLADE_SILVER.clone();
             }
         });
         return clone;
     }
+    // fallback: 程序化方块刀
     var g = new THREE.Group();
     g.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.015, 0.20), BLADE_SILVER.clone()));
     return g;
@@ -219,8 +219,13 @@ export function buildAK47Model() {
 // ============================================================
 export function buildUSPModel() {
     if (pistolReady && pistolRoot) {
-        // pistolRoot 已预制 rotation.y=-PI/2 + scale=1.6，直接 clone
-        return pistolRoot.clone(true);
+        var clone = pistolRoot.clone(true);
+        clone.traverse(function (c) {
+            if (c.isMesh && c.geometry) {
+                c.material = PISTOL_METAL.clone();
+            }
+        });
+        return clone;
     }
     // fallback: 程序化方块手枪
     var g = new THREE.Group();
@@ -242,7 +247,18 @@ export function buildUSPModel() {
 // ============================================================
 export function buildHandGrenadeModel() {
     if (grenadeReady && grenadeRoot) {
-        return grenadeRoot.clone(true);
+        var clone = grenadeRoot.clone(true);
+        clone.traverse(function (c) {
+            if (c.isMesh && c.geometry) {
+                var n = (c.name || '').toLowerCase();
+                if (n.indexOf('ring') >= 0 || n.indexOf('pin') >= 0 || n.indexOf('metal') >= 0) {
+                    c.material = GRENADE_RING.clone();
+                } else {
+                    c.material = GRENADE_BODY.clone();
+                }
+            }
+        });
+        return clone;
     }
     // fallback: 程序化
     var g = new THREE.Group();
