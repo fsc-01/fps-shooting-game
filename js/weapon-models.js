@@ -1,36 +1,20 @@
-// weapon-models.js — GLB 匕首 + OBJ AK47 + GLB 手枪 + 程序化 Grenade
+// weapon-models.js — GLB 匕首 + OBJ AK47 + GLB 手枪 + GLB 手雷（压缩纹理嵌入版）
 
 import * as THREE from 'three';
 
-var texLoader = new THREE.TextureLoader();
+// ============================================================
+// 材质预设（仅匕首和AK47需程序化材质）
+// ============================================================
+var BLADE_SILVER = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide, flatShading: true });
+var AK_METAL     = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85, flatShading: true });
 
 // ============================================================
-// 预加载压缩后的 diffuse 贴图（从原GLB提取，512px JPEG ~30-35KB）
-// ============================================================
-var pistolTex = texLoader.load('./textures/pistol_diff.jpg');
-pistolTex.colorSpace = THREE.SRGBColorSpace;
-var grenadeTex = texLoader.load('./textures/grenade_diff.jpg');
-grenadeTex.colorSpace = THREE.SRGBColorSpace;
-
-// ============================================================
-// 材质预设
-// ============================================================
-var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide, flatShading: true });
-var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85, flatShading: true });
-// 非金属PBR：metalness=0 让贴图颜色直接显示，不需要环境贴图
-// flatShading=true 消除低多边形模型硬边处的纹理颜色渗色（与匕首同方案）
-// 🔴 调试：红色验证材质是否生效。确认后改回正常颜色
-var PISTOL_METAL  = new THREE.MeshStandardMaterial({ map: pistolTex, color: 0xff0000, roughness: 0.5, metalness: 0.05, flatShading: true });
-var GRENADE_BODY  = new THREE.MeshStandardMaterial({ map: grenadeTex, color: 0x00ff00, roughness: 0.6, metalness: 0.0, flatShading: true });
-var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.3, metalness: 0.8, flatShading: true });
-
-// ============================================================
-// 路径
+// 路径（pistol.glb/grenade.glb 包含压缩嵌入纹理，GLTFLoader 原生材质）
 // ============================================================
 var daggerPath  = './textures/dagger/dagger.glb';
 var akObjPath   = './textures/AK47/AK_OBJ.obj';
-var pistolPath  = './textures/pistol_geo.glb';
-var grenadePath = './textures/grenade_geo.glb';
+var pistolPath  = './textures/pistol.glb';
+var grenadePath = './textures/grenade.glb';
 
 // 缓存
 var daggerRoot  = null, daggerReady  = false;
@@ -38,7 +22,6 @@ var akRoot      = null, akReady      = false;
 var pistolRoot  = null, pistolReady  = false;
 var grenadeRoot = null, grenadeReady = false;
 
-// 异步加载完成后的回调（weapon-manager 注入）
 var onModelReady = null;
 export function setModelReadyCallback(cb) { onModelReady = cb; }
 
@@ -47,7 +30,7 @@ export function setModelReadyCallback(cb) { onModelReady = cb; }
 // ============================================================
 setTimeout(function () {
     // --- 匕首 (GLTFLoader) ---
-    import('./loaders/GLTFLoader.js?v=705').then(function (mod) {
+    import('./loaders/GLTFLoader.js?v=708').then(function (mod) {
         var loader = new mod.GLTFLoader();
         loader.load(daggerPath,
             function (gltf) {
@@ -65,55 +48,55 @@ setTimeout(function () {
                 daggerRoot = gltf.scene;
                 daggerReady = true;
                 if (onModelReady) onModelReady(0);
-                console.log('[model] 匕首 GLB 就绪, 通知刷新');
+                console.log('[model] 匕首 GLB 就绪');
             },
             undefined,
-            function (err) { console.warn('[model] 匕首加载失败, fallback方块刀', err); }
+            function (err) { console.warn('[model] 匕首加载失败', err); }
         );
-        // --- 手枪 GLB (已剥离纹理，纯几何+代码PBR材质) ---
+
+        // --- 手枪 GLB (嵌入压缩纹理，GLTFLoader 原生材质) ---
         loader.load(pistolPath,
             function (gltf) {
                 var scene = gltf.scene;
-                console.log('[model] 手枪 GLB 加载成功, 节点:', scene.children.length, '贴图:', pistolTex.image ? pistolTex.image.src : 'loading');
-                // 居中 + 朝向修正：枪管GLTF+X → 游戏-Z
+                // 枪管GLTF+X → 游戏-Z
                 scene.position.set(0, 0, 0);
                 scene.rotation.y = Math.PI / 2;
+                // 仅修正纹理 colorSpace，不动材质
                 scene.traverse(function (c) {
-                    if (c.isMesh && c.geometry) {
-                        // toNonIndexed 确保硬边法线，杜绝纹理颜色渗色（匕首同方案）
-                        c.geometry = c.geometry.toNonIndexed();
-                        c.geometry.computeVertexNormals();
-                        c.material = PISTOL_METAL.clone();
+                    if (c.isMesh && c.material) {
+                        var mats = Array.isArray(c.material) ? c.material : [c.material];
+                        mats.forEach(function (m) {
+                            if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+                            if (m.roughnessMap) m.roughnessMap.colorSpace = THREE.NoColorSpace;
+                            if (m.metalnessMap) m.metalnessMap.colorSpace = THREE.NoColorSpace;
+                            if (m.normalMap) m.normalMap.colorSpace = THREE.NoColorSpace;
+                        });
                     }
                 });
                 pistolRoot = scene;
                 pistolReady = true;
                 if (onModelReady) onModelReady(1);
-                console.log('[model] 手枪 GLB 就绪, 通知刷新');
+                console.log('[model] 手枪 GLB 就绪');
             },
-            function (p) { if (p && p.total > 0) console.log('[model] 手枪加载:', Math.round(p.loaded/p.total*100) + '%'); },
+            function (p) { if (p && p.total > 0) console.log('[model] 手枪:', Math.round(p.loaded/p.total*100) + '%'); },
             function (err) { console.error('[model] 手枪 GLB 加载失败!', err); }
         );
 
-        // --- 手雷 GLB (已剥离纹理，纯几何+代码PBR材质) ---
+        // --- 手雷 GLB (嵌入压缩纹理，GLTFLoader 原生材质) ---
         loader.load(grenadePath,
             function (gltf) {
                 var scene = gltf.scene;
-                console.log('[model] 手雷 GLB 加载成功');
-                // 不旋转: 竖直柄上(NE)头下(SW), 自然握持, 完整可见
                 scene.rotation.x = 0;
                 scene.scale.set(1.0, 1.0, 1.0);
                 scene.traverse(function (c) {
-                    if (c.isMesh && c.geometry) {
-                        // toNonIndexed 确保硬边法线，杜绝纹理颜色渗色
-                        c.geometry = c.geometry.toNonIndexed();
-                        c.geometry.computeVertexNormals();
-                        var n = (c.name || '').toLowerCase();
-                        if (n.indexOf('ring') >= 0 || n.indexOf('pin') >= 0 || n.indexOf('metal') >= 0) {
-                            c.material = GRENADE_RING.clone();
-                        } else {
-                            c.material = GRENADE_BODY.clone();
-                        }
+                    if (c.isMesh && c.material) {
+                        var mats = Array.isArray(c.material) ? c.material : [c.material];
+                        mats.forEach(function (m) {
+                            if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+                            if (m.roughnessMap) m.roughnessMap.colorSpace = THREE.NoColorSpace;
+                            if (m.metalnessMap) m.metalnessMap.colorSpace = THREE.NoColorSpace;
+                            if (m.normalMap) m.normalMap.colorSpace = THREE.NoColorSpace;
+                        });
                     }
                 });
                 grenadeRoot = scene;
@@ -125,7 +108,7 @@ setTimeout(function () {
                     });
                 }, 100);
                 if (onModelReady) onModelReady(3);
-                console.log('[model] 手雷 GLB 就绪, 通知刷新');
+                console.log('[model] 手雷 GLB 就绪');
             },
             undefined,
             function (err) { console.error('[model] 手雷 GLB 加载失败!', err); }
@@ -133,38 +116,32 @@ setTimeout(function () {
 
     }).catch(function (e) { console.warn('[model] GLTFLoader import失败:', e.message); });
 
-    // --- AK47 (OBJLoader — 直接加载OBJ，不转GLB) ---
-    import('./loaders/OBJLoader.js?v=705').then(function (mod) {
+    // --- AK47 (OBJLoader) ---
+    import('./loaders/OBJLoader.js?v=708').then(function (mod) {
         var loader = new mod.OBJLoader();
         loader.load(akObjPath,
             function (obj) {
-                console.log('[model] AK47 OBJ 加载成功, 子节点:', obj.children.length);
-                // OBJ 原始尺寸: 最长轴(Z)≈192m → 缩放到0.88m
                 var scale = 0.88 / 192.353;
                 var mc = 0;
                 obj.traverse(function (c) {
                     if (c.isMesh && c.geometry) {
                         mc++;
                         c.geometry.computeVertexNormals();
-                        // 根据材质名分色（AK_OBJ.mtl 只有 Material01，全用金属）
                         c.material = AK_METAL.clone();
                     }
                 });
-                console.log('[model] AK47 mesh数:', mc, '缩放:', scale.toFixed(4));
                 obj.scale.set(scale, scale, scale);
-                // 枪管原朝+Z，游戏向前是-Z → 转180°
                 obj.rotation.y = Math.PI;
-                // 居中
                 obj.position.set(0, 0, 0);
                 akRoot = obj;
                 akReady = true;
                 if (onModelReady) onModelReady(2);
-                console.log('[model] AK47 OBJ 就绪, 通知刷新');
+                console.log('[model] AK47 OBJ 就绪, mesh:', mc);
             },
-            function (p) { if (p && p.total > 0) console.log('[model] AK OBJ加载:', Math.round(p.loaded/p.total*100) + '%'); },
+            function (p) { if (p && p.total > 0) console.log('[model] AK:', Math.round(p.loaded/p.total*100) + '%'); },
             function (err) { console.error('[model] AK47 OBJ 加载失败!', err); }
         );
-    }).catch(function (e) { console.error('[model] OBJLoader import失败:', e.message, e.stack); });
+    }).catch(function (e) { console.error('[model] OBJLoader import失败:', e.message); });
 }, 500);
 
 // ============================================================
@@ -180,7 +157,6 @@ export function buildKnifeModel() {
         });
         return clone;
     }
-    // fallback: 程序化方块刀
     var g = new THREE.Group();
     g.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.015, 0.20), BLADE_SILVER.clone()));
     return g;
@@ -199,7 +175,6 @@ export function buildAK47Model() {
         });
         return clone;
     }
-    // -- fallback: 程序化拼装 AK --
     var g = new THREE.Group();
     var w = new THREE.MeshStandardMaterial({ color: 0x6b3a2e, roughness: 0.6 });
     var mt = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.3, metalness: 0.8 });
@@ -216,19 +191,12 @@ export function buildAK47Model() {
 }
 
 // ============================================================
-// USP 手枪（纯程序化）
+// USP 手枪（优先GLB → 程序化fallback）
 // ============================================================
 export function buildUSPModel() {
     if (pistolReady && pistolRoot) {
-        var clone = pistolRoot.clone(true);
-        clone.traverse(function (c) {
-            if (c.isMesh && c.geometry) {
-                c.material = PISTOL_METAL.clone();
-            }
-        });
-        return clone;
+        return pistolRoot.clone(true);
     }
-    // fallback: 程序化方块手枪
     var g = new THREE.Group();
     var md = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.25, metalness: 0.85 });
     var mg = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.35, metalness: 0.65 });
@@ -248,20 +216,8 @@ export function buildUSPModel() {
 // ============================================================
 export function buildHandGrenadeModel() {
     if (grenadeReady && grenadeRoot) {
-        var clone = grenadeRoot.clone(true);
-        clone.traverse(function (c) {
-            if (c.isMesh && c.geometry) {
-                var n = (c.name || '').toLowerCase();
-                if (n.indexOf('ring') >= 0 || n.indexOf('pin') >= 0 || n.indexOf('metal') >= 0) {
-                    c.material = GRENADE_RING.clone();
-                } else {
-                    c.material = GRENADE_BODY.clone();
-                }
-            }
-        });
-        return clone;
+        return grenadeRoot.clone(true);
     }
-    // fallback: 程序化
     var g = new THREE.Group();
     var bm = new THREE.MeshStandardMaterial({ color: 0x3a4a2a, roughness: 0.4, metalness: 0.2 });
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.025, 0.09, 8), bm)); g.children[0].position.set(0, 0.02, -0.28);

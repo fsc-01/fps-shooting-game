@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { WEAPON, WEAPON_SWITCH, MELEE, COLORS, KEYS, GRENADE as GRENADE_CFG } from './constants.js?v=700';
 import { isFireJust, isJust, isFireHeld, releaseFire } from './input.js?v=700';
 import { playGunshot, playReloadStage, playKnifeSwing, playGrenadePin } from './audio.js?v=700';
-import { buildAK47Model, buildUSPModel, buildKnifeModel, buildHandGrenadeModel, setModelReadyCallback } from './weapon-models.js?v=705';
+import { buildAK47Model, buildUSPModel, buildKnifeModel, buildHandGrenadeModel, setModelReadyCallback } from './weapon-models.js?v=708';
 import { throwGrenade, getGrenadeCount } from './grenade.js?v=700';
 
 // ============================================================
