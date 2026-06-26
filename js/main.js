@@ -7,7 +7,7 @@ import { initScene, getCamera, getRenderer, onResize } from './scene.js?v=700';
 import { initInput, requestLock, endFrame, isLocked, getWeaponScroll, forceKeyJust, isSettingsToggle, isScoping, resetScope } from './input.js?v=700';
 import { buildMap } from './map.js?v=700';
 import { initPlayer, updatePlayer, getDamageFlash, takeDamage, healPlayer, getIsDead, respawnPlayer, resetPlayerPosition } from './player.js?v=700';
-import { initWeapon, updateWeapon, getAmmoStatus, getScreenShakeOffset, addReserveAmmo, getCurrentWeaponName, getCurrentSlot, isCurrentWeaponKnife, resetWeapon, setInfiniteAmmo, isInfiniteAmmo } from './weapon.js?v=700';
+import { initWeapon, updateWeapon, getAmmoStatus, getScreenShakeOffset, addReserveAmmo, getCurrentWeaponName, getCurrentSlot, isCurrentWeaponKnife, resetWeapon, setInfiniteAmmo, isInfiniteAmmo } from './weapon.js?v=709';
 import { initAudio, resumeAudio, playFootstep, playEnemyDeath, playPickupAmmo, playPickupHealth, playEnemyFootstep, playBulletWhiz } from './audio.js?v=700';
 import { initHUD, updateHUD, triggerDamageFlash, updateDamageFlash, addScore, getScore, resetScore, triggerDamageDirection, addKillMessage, updateKillStreakHUD, showWeaponName, addKill, getTotalKills, resetKills } from './hud.js?v=700';
 import { initEnemies, updateEnemies, getEnemyHitTargets, applyDamage, getEnemyPositionsWithIds, getAliveCount, spawnWaveEnemies, flushTracers, getLastDeathPosition, getAndClearEnemyShotFired, getMovingEnemiesNearPlayer } from './enemy.js?v=700';
@@ -17,6 +17,63 @@ import { initKillStreak, recordKill, updateKillStreak, getActiveStreak, triggerK
 import { initWaves, startWave1, updateWaves, getWavePhase, resetWaves, isPortalActive, enterPortal, isVictory } from './waves.js?v=700';
 import { loadSettings, initSettings, isSettingsOpen, openSettings, closeSettings } from './settings.js?v=700';
 import { AUDIO, WEAPON, PICKUP, SCORE, MELEE, PORTAL } from './constants.js?v=700';
+
+// ── 管理员无限火力面板 ──
+function setupAdminPanel(setInfiniteAmmoFn) {
+    var trigger   = document.getElementById('admin-trigger');
+    var panel     = document.getElementById('admin-panel');
+    var passEl    = document.getElementById('admin-pass');
+    var msgEl     = document.getElementById('admin-msg');
+    var closeBtn  = document.getElementById('admin-close');
+    var indicator = document.getElementById('inf-ammo-indicator');
+
+    var CORRECT_PASS = '123456';
+    var infiniteOn = false;
+
+    function togglePanel(show) {
+        panel.style.display = show ? 'flex' : 'none';
+        passEl.value = '';
+        msgEl.textContent = '';
+        if (show) setTimeout(function() { passEl.focus(); }, 100);
+    }
+
+    trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        togglePanel(true);
+    });
+
+    closeBtn.addEventListener('click', function() { togglePanel(false); });
+
+    panel.addEventListener('click', function(e) {
+        if (e.target === panel) togglePanel(false);
+    });
+
+    passEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            if (passEl.value === CORRECT_PASS) {
+                infiniteOn = !infiniteOn;
+                if (setInfiniteAmmoFn) setInfiniteAmmoFn(infiniteOn);
+                if (infiniteOn) {
+                    msgEl.style.color = '#44ff44';
+                    msgEl.textContent = '✅ 无限火力已开启';
+                    indicator.style.display = 'block';
+                } else {
+                    msgEl.style.color = '#ffaa00';
+                    msgEl.textContent = '⏹ 无限火力已关闭';
+                    indicator.style.display = 'none';
+                }
+                togglePanel(false);
+            } else {
+                msgEl.textContent = '❌ 密码错误';
+            }
+        }
+        if (e.key === 'Escape') togglePanel(false);
+    });
+
+    passEl.addEventListener('keyup', function(e) {
+        if (e.key === 'Escape') togglePanel(false);
+    });
+}
 
 function main() {
     var canvas = document.getElementById('gameCanvas');
@@ -34,10 +91,8 @@ function main() {
     initPlayer(camera, spawnPoint);
     initWeapon(scene, camera);
 
-    // ── 管理员无限火力绑定 ──
-    if (window.__adminBindSetInfiniteAmmo) {
-        window.__adminBindSetInfiniteAmmo(setInfiniteAmmo);
-    }
+    // ── 管理员无限火力：直接绑定，不用window注入 ──
+    setupAdminPanel(setInfiniteAmmo);
     initHUD();
     initAudio();
     initKillStreak();

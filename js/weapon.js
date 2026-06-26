@@ -15,7 +15,7 @@ import {
     isCurrentWeaponKnife as isCurrentWeaponKnifeWM,
     setInfiniteAmmo as setInfiniteAmmoWM,
     isInfiniteAmmo as isInfiniteAmmoWM,
-} from './weapon-manager.js?v=700';
+} from './weapon-manager.js?v=709';
 
 export function initWeapon(scene, camera) { return initWeaponManager(scene, camera); }
 export function updateWeapon(scene, camera, colliders, dt, enemyTargets) {
