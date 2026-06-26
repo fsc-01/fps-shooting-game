@@ -5,16 +5,18 @@ import * as THREE from 'three';
 // ============================================================
 // 材质预设
 // ============================================================
-var BLADE_SILVER = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide });
-var AK_METAL     = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85 });
+var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.2, metalness: 0.95, side: THREE.DoubleSide });
+var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85 });
+var PISTOL_METAL  = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.35, metalness: 0.8 });
+var GRENADE_OLIVE = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.5, metalness: 0.1 });
 
 // ============================================================
 // 路径
 // ============================================================
 var daggerPath  = './textures/dagger/dagger.glb';
 var akObjPath   = './textures/AK47/AK_OBJ.obj';
-var pistolPath  = './textures/pistol.glb';
-var grenadePath = './textures/grenade.glb';
+var pistolPath  = './textures/pistol_geo.glb';
+var grenadePath = './textures/grenade_geo.glb';
 
 // 缓存
 var daggerRoot  = null, daggerReady  = false;
@@ -31,7 +33,7 @@ export function setModelReadyCallback(cb) { onModelReady = cb; }
 // ============================================================
 setTimeout(function () {
     // --- 匕首 (GLTFLoader) ---
-    import('./loaders/GLTFLoader.js').then(function (mod) {
+    import('./loaders/GLTFLoader.js?v=701').then(function (mod) {
         var loader = new mod.GLTFLoader();
         loader.load(daggerPath,
             function (gltf) {
@@ -53,7 +55,7 @@ setTimeout(function () {
             undefined,
             function (err) { console.warn('[model] 匕首加载失败, fallback方块刀', err); }
         );
-        // --- 手枪 GLB (已合并为单一mesh) ---
+        // --- 手枪 GLB (已剥离纹理，纯几何+代码PBR材质) ---
         loader.load(pistolPath,
             function (gltf) {
                 var scene = gltf.scene;
@@ -62,8 +64,9 @@ setTimeout(function () {
                 scene.position.set(0, 0, 0);
                 scene.rotation.y = Math.PI / 2;
                 scene.traverse(function (c) {
-                    if (c.isMesh && c.material && c.material.map) {
-                        c.material.map.colorSpace = THREE.SRGBColorSpace;
+                    if (c.isMesh && c.geometry) {
+                        c.geometry.computeVertexNormals();
+                        c.material = PISTOL_METAL.clone();
                     }
                 });
                 pistolRoot = scene;
@@ -75,7 +78,7 @@ setTimeout(function () {
             function (err) { console.error('[model] 手枪 GLB 加载失败!', err); }
         );
 
-        // --- 手雷 GLB ---
+        // --- 手雷 GLB (已剥离纹理，纯几何+代码PBR材质) ---
         loader.load(grenadePath,
             function (gltf) {
                 var scene = gltf.scene;
@@ -84,15 +87,16 @@ setTimeout(function () {
                 scene.rotation.x = 0;
                 scene.scale.set(1.0, 1.0, 1.0);
                 scene.traverse(function (c) {
-                    if (c.isMesh && c.material && c.material.map) {
-                        c.material.map.colorSpace = THREE.SRGBColorSpace;
+                    if (c.isMesh && c.geometry) {
+                        c.geometry.computeVertexNormals();
+                        c.material = GRENADE_OLIVE.clone();
                     }
                 });
                 grenadeRoot = scene;
                 grenadeReady = true;
                 // 注入 grenade.js
                 setTimeout(function () {
-                    import('./grenade.js?v=700').then(function (gm) {
+                    import('./grenade.js?v=701').then(function (gm) {
                         if (gm.setGrenadeGLB) gm.setGrenadeGLB(grenadeRoot, true);
                     });
                 }, 100);
@@ -106,7 +110,7 @@ setTimeout(function () {
     }).catch(function (e) { console.warn('[model] GLTFLoader import失败:', e.message); });
 
     // --- AK47 (OBJLoader — 直接加载OBJ，不转GLB) ---
-    import('./loaders/OBJLoader.js').then(function (mod) {
+    import('./loaders/OBJLoader.js?v=701').then(function (mod) {
         var loader = new mod.OBJLoader();
         loader.load(akObjPath,
             function (obj) {

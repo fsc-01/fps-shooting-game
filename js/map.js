@@ -5,7 +5,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { WORLD, COLORS, PLAYER, BOX3, ENEMY, PICKUP } from './constants.js?v=700';
+import { WORLD, COLORS, PLAYER, BOX3, ENEMY, PICKUP } from './constants.js?v=701';
 
 const texLoader = new THREE.TextureLoader();
 
@@ -26,11 +26,14 @@ export function buildMap(scene) {
 
     // === 地面 ===
     const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundTex = texLoader.load('./textures/sand.jpg');
+    const groundTex = texLoader.load('./textures/sand.jpg',
+        undefined,  // onProgress
+        function (err) { console.warn('[map] 地面纹理加载失败, 使用纯色fallback', err); }
+    );
     groundTex.colorSpace = THREE.SRGBColorSpace;
     groundTex.wrapS = THREE.RepeatWrapping; groundTex.wrapT = THREE.RepeatWrapping;
     groundTex.repeat.set(24, 24);
-    const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.9 });
+    const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, color: COLORS.GROUND, roughness: 0.9 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -39,11 +42,14 @@ export function buildMap(scene) {
 
     // === 外围四面墙 ===
     const wallGeoH = new THREE.BoxGeometry(GROUND_SIZE, WALL_HEIGHT, T); // 水平墙（北/南）
-    const wallTex = texLoader.load('./textures/brick.jpg');
+    const wallTex = texLoader.load('./textures/brick.jpg',
+        undefined,  // onProgress
+        function (err) { console.warn('[map] 墙壁纹理加载失败, 使用纯色fallback', err); }
+    );
     wallTex.colorSpace = THREE.SRGBColorSpace;
     wallTex.wrapS = THREE.RepeatWrapping; wallTex.wrapT = THREE.RepeatWrapping;
     wallTex.repeat.set(20, 4);
-    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, color: COLORS.WALL, roughness: 0.8 });
 
     // 北墙 & 南墙（无门洞，整面）
     const wallsNS = [
