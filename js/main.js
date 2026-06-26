@@ -7,7 +7,7 @@ import { initScene, getCamera, getRenderer, onResize } from './scene.js?v=700';
 import { initInput, requestLock, endFrame, isLocked, getWeaponScroll, forceKeyJust, isSettingsToggle, isScoping, resetScope } from './input.js?v=700';
 import { buildMap } from './map.js?v=700';
 import { initPlayer, updatePlayer, getDamageFlash, takeDamage, healPlayer, getIsDead, respawnPlayer, resetPlayerPosition } from './player.js?v=700';
-import { initWeapon, updateWeapon, getAmmoStatus, getScreenShakeOffset, addReserveAmmo, getCurrentWeaponName, getCurrentSlot, isCurrentWeaponKnife, resetWeapon } from './weapon.js?v=700';
+import { initWeapon, updateWeapon, getAmmoStatus, getScreenShakeOffset, addReserveAmmo, getCurrentWeaponName, getCurrentSlot, isCurrentWeaponKnife, resetWeapon, setInfiniteAmmo, isInfiniteAmmo } from './weapon.js?v=700';
 import { initAudio, resumeAudio, playFootstep, playEnemyDeath, playPickupAmmo, playPickupHealth, playEnemyFootstep, playBulletWhiz } from './audio.js?v=700';
 import { initHUD, updateHUD, triggerDamageFlash, updateDamageFlash, addScore, getScore, resetScore, triggerDamageDirection, addKillMessage, updateKillStreakHUD, showWeaponName, addKill, getTotalKills, resetKills } from './hud.js?v=700';
 import { initEnemies, updateEnemies, getEnemyHitTargets, applyDamage, getEnemyPositionsWithIds, getAliveCount, spawnWaveEnemies, flushTracers, getLastDeathPosition, getAndClearEnemyShotFired, getMovingEnemiesNearPlayer } from './enemy.js?v=700';
@@ -33,6 +33,11 @@ function main() {
     // --- 初始化子系统 ---
     initPlayer(camera, spawnPoint);
     initWeapon(scene, camera);
+
+    // ── 管理员无限火力绑定 ──
+    if (window.__adminBindSetInfiniteAmmo) {
+        window.__adminBindSetInfiniteAmmo(setInfiniteAmmo);
+    }
     initHUD();
     initAudio();
     initKillStreak();
@@ -424,10 +429,11 @@ function main() {
             // --- 12. HUD ---
             var ammo = getAmmoStatus();
             var wavePhase = getWavePhase();
+            var infAmmo = isInfiniteAmmo();
             updateHUD(dt, {
                 health: playerState ? playerState.health : 100,
-                ammo: ammo ? ammo.currentAmmo : 30,
-                reserve: ammo ? ammo.reserveAmmo : 90,
+                ammo: infAmmo ? 999 : (ammo ? ammo.currentAmmo : 30),
+                reserve: infAmmo ? 999 : (ammo ? ammo.reserveAmmo : 90),
                 reloadTimer: ammo ? ammo.reloadTimer : 0,
                 isMoving: playerState ? playerState.isMoving : false,
                 isJumping: playerState ? playerState.isJumping : false,

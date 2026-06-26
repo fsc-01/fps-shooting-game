@@ -13,6 +13,8 @@ import {
     getCurrentWeaponName as getCurrentWeaponNameWM,
     getCurrentSlot as getCurrentSlotWM,
     isCurrentWeaponKnife as isCurrentWeaponKnifeWM,
+    setInfiniteAmmo as setInfiniteAmmoWM,
+    isInfiniteAmmo as isInfiniteAmmoWM,
 } from './weapon-manager.js?v=700';
 
 export function initWeapon(scene, camera) { return initWeaponManager(scene, camera); }
@@ -26,3 +28,5 @@ export function addReserveAmmo(amount) { return addReserveAmmoWM(amount); }
 export function getCurrentWeaponName() { return getCurrentWeaponNameWM(); }
 export function getCurrentSlot() { return getCurrentSlotWM(); }
 export function isCurrentWeaponKnife() { return isCurrentWeaponKnifeWM(); }
+export function setInfiniteAmmo(v) { setInfiniteAmmoWM(v); }
+export function isInfiniteAmmo() { return isInfiniteAmmoWM(); }

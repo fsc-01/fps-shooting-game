@@ -8,7 +8,7 @@ import { WEAPON, WEAPON_SWITCH, MELEE, COLORS, KEYS, GRENADE as GRENADE_CFG } fr
 import { isFireJust, isJust, isFireHeld, releaseFire } from './input.js?v=700';
 import { playGunshot, playReloadStage, playKnifeSwing, playGrenadePin } from './audio.js?v=700';
 import { buildAK47Model, buildUSPModel, buildKnifeModel, buildHandGrenadeModel, setModelReadyCallback } from './weapon-models.js?v=708';
-import { throwGrenade, getGrenadeCount } from './grenade.js?v=700';
+import { throwGrenade, getGrenadeCount, resetGrenadeCount } from './grenade.js?v=700';
 
 // ============================================================
 // 武器配置（不可变数据）
@@ -96,6 +96,11 @@ let swayX = 0, swayY = 0;
 let shakeIntensity = 0;
 let gunGroup;
 let muzzleFlash;
+
+// ── 管理员无限火力模式 ──
+let _infiniteAmmo = false;
+export function setInfiniteAmmo(v) { _infiniteAmmo = v; }
+export function isInfiniteAmmo()   { return _infiniteAmmo; }
 const bulletHoles = [];
 const MAX_HOLES = 100;
 let lastReloadStage = '';
@@ -164,7 +169,7 @@ export function updateWeaponManager(scene, camera, colliders, dt, enemyTargets =
     if (isJust(KEYS.WEAPON_1) && currentSlot !== 0 && !isSwitching) startSwitch(0);
     if (isJust(KEYS.WEAPON_2) && currentSlot !== 1 && !isSwitching) startSwitch(1);
     if (isJust(KEYS.WEAPON_3) && currentSlot !== 2 && !isSwitching) startSwitch(2);
-    if (isJust(KEYS.GRENADE) && currentSlot !== 3 && !isSwitching && getGrenadeCount() > 0) startSwitch(3);
+    if (isJust(KEYS.GRENADE) && currentSlot !== 3 && !isSwitching && (_infiniteAmmo || getGrenadeCount() > 0)) startSwitch(3);
 
     // --- 切换动画 ---
     if (isSwitching) {
@@ -218,8 +223,8 @@ export function updateWeaponManager(scene, camera, colliders, dt, enemyTargets =
         return { hitConfirmed, isFiring, isReloading, enemyHit: null, isSwitching: false };
     }
 
-    // R键换弹
-    if (cfg.category !== 'melee' && isJust(KEYS.RELOAD) && state.currentAmmo < cfg.magSize && state.reserveAmmo > 0) {
+    // R键换弹（无限火力跳过）
+    if (!_infiniteAmmo && cfg.category !== 'melee' && isJust(KEYS.RELOAD) && state.currentAmmo < cfg.magSize && state.reserveAmmo > 0) {
         state.reloadTimer = (state.currentAmmo === 0) ? cfg.emptyReload : cfg.tacticalReload;
         lastReloadStage = '';
         updateGunPosition(camera);
@@ -227,8 +232,8 @@ export function updateWeaponManager(scene, camera, colliders, dt, enemyTargets =
         return { hitConfirmed, isFiring, isReloading: false, enemyHit: null, isSwitching: false };
     }
 
-    // 空仓自动换弹
-    if (cfg.category !== 'melee' && state.currentAmmo === 0 && state.fireTimer <= 0 && state.reserveAmmo > 0) {
+    // 空仓自动换弹（无限火力跳过）
+    if (!_infiniteAmmo && cfg.category !== 'melee' && state.currentAmmo === 0 && state.fireTimer <= 0 && state.reserveAmmo > 0) {
         state.reloadTimer = cfg.emptyReload;
         lastReloadStage = '';
         updateGunPosition(camera);
@@ -253,8 +258,9 @@ export function updateWeaponManager(scene, camera, colliders, dt, enemyTargets =
 
     if (wantFire && state.fireTimer <= 0) {
         if (cfg.category === 'grenade') {
-            // 手雷投掷
-            if (getGrenadeCount() > 0) {
+            // 手雷投掷（无限火力无限扔 — 先补满再扔）
+            if (_infiniteAmmo || getGrenadeCount() > 0) {
+                if (_infiniteAmmo) resetGrenadeCount();
                 throwGrenade(camera, scene);
                 playGrenadePin();
                 state.fireTimer = 1 / cfg.fireRate;
@@ -280,8 +286,8 @@ export function updateWeaponManager(scene, camera, colliders, dt, enemyTargets =
             hitConfirmed = result.hitConfirmed;
             enemyHit = result.enemyHit;
             state.fireTimer = 1 / cfg.fireRate;
-        } else if (state.currentAmmo > 0) {
-            // 枪械射击
+        } else if (state.currentAmmo > 0 || _infiniteAmmo) {
+            // 枪械射击（无限火力空弹匣也可射）
             isFiring = true;
             const result = fireRanged(cfg, state, scene, camera, colliders, enemyTargets);
             hitConfirmed = result.hitConfirmed;
@@ -491,8 +497,9 @@ function getReloadStage(cfg, state) {
 // ============================================================
 
 function fireRanged(cfg, state, scene, camera, colliders, enemyTargets) {
-    state.currentAmmo--;
-    state.fireTimer = 1 / cfg.fireRate;
+    // 无限火力：不扣弹药，射速翻倍
+    if (!_infiniteAmmo) state.currentAmmo--;
+    state.fireTimer = 1 / (cfg.fireRate * (_infiniteAmmo ? 2.5 : 1.0));
     recoilOffset += cfg.recoilPerShot;
     state.shotCount++;
     state.spreadRecovery = 0;
