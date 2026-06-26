@@ -19,9 +19,10 @@ var BLADE_SILVER  = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness:
 var AK_METAL      = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.85, flatShading: true });
 // 非金属PBR：metalness=0 让贴图颜色直接显示，不需要环境贴图
 // flatShading=true 消除低多边形模型硬边处的纹理颜色渗色（与匕首同方案）
-var PISTOL_METAL  = new THREE.MeshStandardMaterial({ map: pistolTex, color: 0xcccccc, roughness: 0.5, metalness: 0.05, flatShading: true });
-var GRENADE_BODY  = new THREE.MeshStandardMaterial({ map: grenadeTex, color: 0xdddddd, roughness: 0.6, metalness: 0.0, flatShading: true });
-var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.8, flatShading: true });
+// 🔴 调试：红色验证材质是否生效。确认后改回正常颜色
+var PISTOL_METAL  = new THREE.MeshStandardMaterial({ map: pistolTex, color: 0xff0000, roughness: 0.5, metalness: 0.05, flatShading: true });
+var GRENADE_BODY  = new THREE.MeshStandardMaterial({ map: grenadeTex, color: 0x00ff00, roughness: 0.6, metalness: 0.0, flatShading: true });
+var GRENADE_RING  = new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.3, metalness: 0.8, flatShading: true });
 
 // ============================================================
 // 路径
@@ -119,7 +120,7 @@ setTimeout(function () {
                 grenadeReady = true;
                 // 注入 grenade.js
                 setTimeout(function () {
-                    import('./grenade.js?v=705').then(function (gm) {
+                    import('./grenade.js?v=700').then(function (gm) {
                         if (gm.setGrenadeGLB) gm.setGrenadeGLB(grenadeRoot, true);
                     });
                 }, 100);

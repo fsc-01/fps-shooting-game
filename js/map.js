@@ -5,7 +5,7 @@
 // ============================================================
 
 import * as THREE from 'three';
-import { WORLD, COLORS, PLAYER, BOX3, ENEMY, PICKUP } from './constants.js?v=701';
+import { WORLD, COLORS, PLAYER, BOX3, ENEMY, PICKUP } from './constants.js?v=700';
 
 const texLoader = new THREE.TextureLoader();
 
